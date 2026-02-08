@@ -633,8 +633,16 @@ export default function App() {
 
   if (isSharedView) {
     return (
-      <div className="app-shell flex min-h-screen flex-col items-center justify-center">
-        <div className="w-full max-w-lg px-4">
+      <div className="app-shell flex min-h-screen flex-col items-center justify-center p-4">
+        <div className="sender-pill fixed top-8 z-50">
+          <span className="pill-dot"></span>
+          <span className="pill-text">
+            {invite.senderName ? `${invite.senderName}'s Invite` : "Personal Invite"}
+            {invite.restaurantName && ` • ${invite.restaurantName}`}
+            {invite.time && ` • ${formatDateTime(invite.time)}`}
+          </span>
+        </div>
+        <div className="w-full max-w-lg">
           <StackedInviteCards invite={invitePreview} calendarUrl={calendarUrl} shareUrl={shareUrl} />
         </div>
       </div>
