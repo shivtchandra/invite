@@ -16,6 +16,23 @@ npm run dev
 
 Frontend runs at `http://localhost:5173` and backend at `http://localhost:8787`.
 
+## Next.js Production Scaffold
+
+New app scaffold:
+- `/Users/shivat/Documents/invite/apps/web`
+
+Run it locally:
+
+```bash
+npm install
+npm run dev:web
+```
+
+It runs at `http://localhost:3000`.
+
+Required env for API routes:
+- `DATABASE_URL=<postgres_connection_string>`
+
 ## Google Restaurant Images
 
 To fetch photos from Google:
@@ -33,3 +50,19 @@ If no key is set (or Google photo is unavailable), the API returns a fallback im
 - `GET /api/google-image?name=<restaurant>&location=<area>`
 - `GET /api/place-photo?photoName=<photo_name>`
 - `GET /api/og.svg?name=&cuisine=&location=&time=`
+
+## Next API Endpoints (Production Scaffold)
+
+- `POST /api/invites`
+- `GET /api/invites`
+- `GET /api/invites/:slug`
+- `PATCH /api/invites/:slug`
+- Public page: `/i/:slug`
+
+## Production Planning Docs
+
+- `/Users/shivat/Documents/invite/docs/production/REPO_STRUCTURE.md`
+- `/Users/shivat/Documents/invite/docs/production/ARCHITECTURE.md`
+- `/Users/shivat/Documents/invite/docs/production/API_CONTRACT.md`
+- `/Users/shivat/Documents/invite/docs/production/DELIVERY_PLAN.md`
+- `/Users/shivat/Documents/invite/db/schema.sql`

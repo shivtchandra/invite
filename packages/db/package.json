@@ -1,0 +1,9 @@
+{
+  "name": "@invite/db",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "migrate:sql": "psql \"$DATABASE_URL\" -f ../../db/schema.sql"
+  }
+}
+

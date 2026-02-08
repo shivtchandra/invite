@@ -4,11 +4,16 @@
   "version": "0.1.0",
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "apps/web",
+    "packages/shared",
+    "packages/db"
   ],
   "scripts": {
     "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev:web": "npm --prefix apps/web run dev",
     "build": "npm --prefix client run build",
+    "build:web": "npm --prefix apps/web run build",
     "start": "npm --prefix server run start"
   },
   "devDependencies": {
