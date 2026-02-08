@@ -265,33 +265,54 @@ function fromBase64Url(input) {
 }
 
 function packSharePayload(invite) {
-  const compact = {};
-  const setIfPresent = (shortKey, value) => {
-    if (value) {
-      compact[shortKey] = value;
+  // Helper: strip query params from image URLs to save space
+  const stripImageParams = (url) => {
+    if (!url) return url;
+    try {
+      const parsed = new URL(url);
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return url;
     }
   };
 
-  setIfPresent("sn", invite.senderName);
-  setIfPresent("r", invite.restaurantName);
-  setIfPresent("c", invite.cuisine);
-  setIfPresent("rt", invite.rating);
-  setIfPresent("l", invite.location);
-  setIfPresent("t", invite.time);
-  setIfPresent("p", invite.peopleGoing);
-  setIfPresent("o", invite.offer);
-  setIfPresent("id", invite.restaurantId);
-  setIfPresent("n", invite.note);
-  setIfPresent("u", invite.menuUrl);
-  setIfPresent("src", invite.source);
-  if (invite.imageUrl && invite.imageUrl !== RELIABLE_PREVIEW_FALLBACK) {
-    setIfPresent("i", invite.imageUrl);
-  }
-  if (invite.customCards?.length) {
-    compact.cc = JSON.stringify(invite.customCards);
-  }
+  // Helper: convert datetime to Unix timestamp (seconds)
+  const toTimestamp = (datetime) => {
+    if (!datetime) return null;
+    try {
+      return Math.floor(new Date(datetime).getTime() / 1000).toString();
+    } catch {
+      return datetime;
+    }
+  };
 
-  return toBase64Url(JSON.stringify(compact));
+  // Helper: convert source to single character
+  const sourceToCode = (src) => {
+    const map = { swiggy: "s", zomato: "z", dineout: "d", manual: "m", other: "o" };
+    return map[src] || "m";
+  };
+
+  // Use array-based encoding (version 2) for maximum compression
+  // Format: [version, senderName, restaurantName, cuisine, rating, location, timestamp, people, offer, restaurantId, note, menuUrl, sourceCode, imageUrl, customCards]
+  const arr = [
+    "2", // version marker
+    invite.senderName || "",
+    invite.restaurantName || "",
+    invite.cuisine || "",
+    invite.rating || "",
+    invite.location || "",
+    toTimestamp(invite.time) || "",
+    invite.peopleGoing || "",
+    invite.offer || "",
+    invite.restaurantId || "",
+    invite.note || "",
+    invite.menuUrl || "",
+    sourceToCode(invite.source),
+    (invite.imageUrl && invite.imageUrl !== RELIABLE_PREVIEW_FALLBACK) ? stripImageParams(invite.imageUrl) : "",
+    invite.customCards?.length ? JSON.stringify(invite.customCards) : ""
+  ];
+
+  return toBase64Url(JSON.stringify(arr));
 }
 
 function unpackSharePayload(compactValue) {
@@ -302,6 +323,71 @@ function unpackSharePayload(compactValue) {
       return {};
     }
 
+    // Helper: convert Unix timestamp back to ISO datetime
+    const fromTimestamp = (ts) => {
+      if (!ts) return "";
+      try {
+        const num = parseInt(ts, 10);
+        if (isNaN(num)) return ts;
+        const date = new Date(num * 1000);
+        return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      } catch {
+        return ts;
+      }
+    };
+
+    // Helper: convert single character back to source name
+    const codeToSource = (code) => {
+      const map = { s: "swiggy", z: "zomato", d: "dineout", m: "manual", o: "other" };
+      return map[code] || code;
+    };
+
+    // Check if this is the new array-based format (version 2)
+    if (Array.isArray(payload) && payload[0] === "2") {
+      const [
+        version,
+        senderName,
+        restaurantName,
+        cuisine,
+        rating,
+        location,
+        timestamp,
+        peopleGoing,
+        offer,
+        restaurantId,
+        note,
+        menuUrl,
+        sourceCode,
+        imageUrl,
+        customCardsJson
+      ] = payload;
+
+      const expanded = {};
+      if (senderName) expanded.senderName = senderName;
+      if (restaurantName) expanded.restaurantName = restaurantName;
+      if (cuisine) expanded.cuisine = cuisine;
+      if (rating) expanded.rating = rating;
+      if (location) expanded.location = location;
+      if (timestamp) expanded.time = fromTimestamp(timestamp);
+      if (peopleGoing) expanded.peopleGoing = peopleGoing;
+      if (offer) expanded.offer = offer;
+      if (restaurantId) expanded.restaurantId = restaurantId;
+      if (note) expanded.note = note;
+      if (menuUrl) expanded.menuUrl = menuUrl;
+      if (sourceCode) expanded.source = codeToSource(sourceCode);
+      if (imageUrl) expanded.imageUrl = imageUrl;
+      if (customCardsJson) {
+        try {
+          expanded.customCards = JSON.parse(customCardsJson);
+        } catch {
+          expanded.customCards = [];
+        }
+      }
+
+      return expanded;
+    }
+
+    // Backward compatibility: handle old object-based format
     const expanded = {};
     Object.entries(COMPACT_FIELD_MAP).forEach(([shortKey, fullKey]) => {
       if (payload[shortKey]) {
