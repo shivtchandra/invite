@@ -427,10 +427,12 @@ export default function App() {
   const urlParams = readInviteFromUrl();
   const searchParams = new URLSearchParams(window.location.search);
   const hasShortId = searchParams.has("i");
-  const isSharedView = Boolean(urlParams.restaurantName) || hasShortId;
+  const hasCompactData = searchParams.has("d");
+  const isSharedView = Boolean(urlParams.restaurantName) || hasShortId || hasCompactData;
 
   const [invite, setInvite] = useState({ ...DEFAULT_INVITE, ...urlParams });
-  const [loadingInvite, setLoadingInvite] = useState(hasShortId);
+  // Only show loading spinner if we have a short ID but no inline compact data
+  const [loadingInvite, setLoadingInvite] = useState(hasShortId && !hasCompactData);
 
   const [bookingText, setBookingText] = useState("");
   const [loadingAutofill, setLoadingAutofill] = useState(false);
@@ -448,7 +450,11 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const inviteId = params.get("i");
     if (inviteId) {
-      setStatus("Loading shared invite...");
+      // If we already have data from ?d= param, just try to refresh from server silently
+      const alreadyHasData = Boolean(invite.restaurantName || invite.senderName);
+      if (!alreadyHasData) {
+        setStatus("Loading shared invite...");
+      }
       fetch(`/api/invite/${inviteId}`)
         .then((res) => {
           if (!res.ok) throw new Error("Invite not found");
@@ -463,12 +469,16 @@ export default function App() {
             delete data.swiggyUrl;
           }
           setInvite({ ...DEFAULT_INVITE, ...data });
-          setStatus("Invite loaded from short link.");
-          console.log("[Short Link] Invite state updated with senderName:", data.senderName);
+          if (!alreadyHasData) {
+            setStatus("Invite loaded from short link.");
+          }
         })
         .catch((err) => {
-          console.error(err);
-          setStatus("Could not load invite. It may have expired.");
+          console.error("[Short Link] Fetch failed:", err);
+          if (!alreadyHasData) {
+            setStatus("Could not load invite. It may have expired.");
+          }
+          // If we have ?d= data, we're already showing the invite — no problem
         })
         .finally(() => {
           setLoadingInvite(false);
@@ -477,6 +487,8 @@ export default function App() {
   }, []);
 
   async function getShortLink() {
+    // Always include ?d= compact payload as a reliable fallback
+    const compactPayload = packSharePayload(invite);
     try {
       const res = await fetch("/api/invite", {
         method: "POST",
@@ -487,6 +499,7 @@ export default function App() {
       const { id } = await res.json();
       const url = new URL(window.location.origin);
       url.searchParams.set("i", id);
+      url.searchParams.set("d", compactPayload);
       return url.toString();
     } catch (e) {
       console.error(e);
