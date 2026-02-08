@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import LandingPage from "./components/LandingPage";
 import StackedInviteCards from "./components/StackedInviteCards";
 
 const RELIABLE_PREVIEW_FALLBACK =
@@ -526,6 +527,7 @@ export default function App() {
   const [lastAutoSignature, setLastAutoSignature] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [status, setStatus] = useState("Paste booking text. Parsing runs automatically.");
+  const [showLanding, setShowLanding] = useState(!isSharedView);
   const inviteRef = useRef(invite);
 
   useEffect(() => {
@@ -851,6 +853,10 @@ export default function App() {
     });
   }
 
+  if (showLanding && !isSharedView) {
+    return <LandingPage onStart={() => setShowLanding(false)} />;
+  }
+
   // Shared view - recipients only see the cards
   if (loadingInvite) {
     return (
@@ -886,14 +892,31 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="page-wrap">
-        <header className="mb-8">
-          <p className="kicker">Invite Stack</p>
-          <h1 className="font-display text-3xl font-semibold leading-tight text-rose-950 sm:text-5xl">
-            Make invites feel like a reveal, not a form.
-          </h1>
-          <p className="mt-2 text-sm text-rose-700">
-            Paste booking text once. We parse instantly and stage the invite card stack with proper depth.
-          </p>
+        <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-rose-100">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="w-1.5 h-6 bg-rose-500 rounded-full" />
+              <p className="kicker !mb-0">Invite Stack</p>
+            </div>
+            <h1 className="font-display text-4xl font-bold leading-tight text-rose-950 sm:text-5xl">
+              Make invites feel like a <span className="text-rose-500">reveal</span>.
+            </h1>
+            <p className="mt-3 text-base text-rose-900/40 font-medium">
+              We parse your text instantly and stage the invite card stack with proper depth.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setShowLanding(true)}
+            className="group shrink-0 flex items-center gap-2.5 px-6 py-3.5 bg-rose-500 text-white hover:bg-rose-600 transition-all duration-300 rounded-[24px] text-xs font-black uppercase tracking-[0.2em] shadow-[0_15px_45px_rgba(225,29,72,0.3)] hover:scale-[1.05] active:scale-95 border border-rose-400/20"
+          >
+            <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M10.707 2.293a1 1 0 0 0-1.414 0l-7 7a1 1 0 0 0 1.414 1.414L4 10.414V17a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-6.586l.293.293a1 1 0 0 0 1.414-1.414l-7-7Z" />
+              </svg>
+            </div>
+            <span>Explore Home</span>
+          </button>
         </header>
 
         <main className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">

@@ -124,7 +124,7 @@
   }
 
   .preview-link {
-    @apply mt-3 overflow-hidden text-ellipsis whitespace-nowrap rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+    @apply mt-3 overflow-hidden break-all rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
   }
 
   .sender-pill {
