@@ -46,6 +46,97 @@ const SHARE_FIELDS = [
   "note"
 ];
 
+function buildDatetimeLocal(dateText, timeText) {
+  const candidate = `${dateText || ""} ${timeText || ""}`.trim();
+  if (!candidate) {
+    return "";
+  }
+  const parsed = new Date(candidate);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function extractRestaurantId(value) {
+  if (!value) {
+    return "";
+  }
+  const match = String(value).match(/details\/(\d+)/i);
+  return match ? match[1] : "";
+}
+
+function parseSwiggyLinkClient(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.hostname.includes("swiggy.onelink.me")) {
+      const afDpRaw = parsed.searchParams.get("af_dp") || parsed.searchParams.get("deep_link_value") || "";
+      const decodedDeepLink = afDpRaw ? decodeURIComponent(afDpRaw) : "";
+      return {
+        restaurantId: extractRestaurantId(decodedDeepLink),
+        deepLink: decodedDeepLink
+      };
+    }
+
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const restaurantId = segments
+      .slice()
+      .reverse()
+      .find((segment) => /^\d+$/.test(segment));
+    return { restaurantId: restaurantId || "" };
+  } catch {
+    return {};
+  }
+}
+
+function parseBookingTextClient(rawText) {
+  const text = String(rawText || "").replace(/\s+/g, " ").trim();
+  if (!text) {
+    return {};
+  }
+
+  const details = {};
+
+  const bookingMatch = text.match(/booking on\s+([^,]+),\s*([0-9: ]+[APMapm]{2})/i);
+  if (bookingMatch) {
+    details.bookingDate = bookingMatch[1].trim();
+    details.bookingTime = bookingMatch[2].trim().toUpperCase();
+    details.time = buildDatetimeLocal(details.bookingDate, details.bookingTime);
+  }
+
+  const guestsMatch = text.match(/for\s+(\d+)\s+guest/i);
+  if (guestsMatch) {
+    details.peopleGoing = guestsMatch[1];
+  }
+
+  const venueMatch = text.match(/at\s+(.+?)\s+with offer/i);
+  const venueFallback = text.match(/at\s+(.+?)\.\s*please reach/i);
+  const venueRaw = (venueMatch?.[1] || venueFallback?.[1] || "").trim();
+  if (venueRaw) {
+    const parts = venueRaw.split(",").map((part) => part.trim()).filter(Boolean);
+    if (parts.length) {
+      details.restaurantName = parts[0];
+      details.location = parts.slice(1).join(", ");
+    }
+  }
+
+  const offerMatch = text.match(/with offer\s+(.+?)(?:\.|please reach|checkout)/i);
+  if (offerMatch) {
+    details.offer = offerMatch[1].trim();
+  }
+
+  const urlMatch = text.match(/https?:\/\/[^\s]+/i);
+  if (urlMatch) {
+    details.swiggyUrl = urlMatch[0].trim().replace(/[),.;]+$/, "");
+    const parsedUrl = parseSwiggyLinkClient(details.swiggyUrl);
+    if (parsedUrl.restaurantId) {
+      details.restaurantId = parsedUrl.restaurantId;
+    }
+  }
+
+  return details;
+}
+
 function readInviteFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const next = {};
@@ -55,6 +146,16 @@ function readInviteFromUrl() {
       next[field] = value;
     }
   });
+
+  if (!next.time) {
+    const bookingDate = params.get("bookingDate");
+    const bookingTime = params.get("bookingTime");
+    const fallbackTime = buildDatetimeLocal(bookingDate, bookingTime);
+    if (fallbackTime) {
+      next.time = fallbackTime;
+    }
+  }
+
   return next;
 }
 
@@ -125,7 +226,7 @@ export default function App() {
   }, [invite]);
 
   useEffect(() => {
-    if (invite.time) {
+    if (invite.time || isSharedView) {
       return;
     }
     const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
@@ -177,12 +278,24 @@ export default function App() {
         let parseSource = "";
 
         if (hasBookingText) {
-          const bookingRes = await fetch("/api/parse-booking-text", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: bookingText })
-          });
-          const parsedBooking = bookingRes.ok ? await bookingRes.json() : {};
+          let parsedBooking = {};
+          try {
+            const bookingRes = await fetch("/api/parse-booking-text", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: bookingText })
+            });
+            if (bookingRes.ok) {
+              parsedBooking = await bookingRes.json();
+            }
+          } catch {
+            parsedBooking = {};
+          }
+
+          if (!parsedBooking.time && !parsedBooking.restaurantName) {
+            parsedBooking = parseBookingTextClient(bookingText);
+          }
+
           next = {
             ...next,
             restaurantName: parsedBooking.restaurantName || next.restaurantName,
@@ -198,8 +311,19 @@ export default function App() {
 
         const swiggyUrl = next.swiggyUrl.trim();
         if (swiggyUrl) {
-          const extractRes = await fetch(`/api/extract-swiggy?url=${encodeURIComponent(swiggyUrl)}`);
-          const extracted = extractRes.ok ? await extractRes.json() : {};
+          let extracted = {};
+          try {
+            const extractRes = await fetch(`/api/extract-swiggy?url=${encodeURIComponent(swiggyUrl)}`);
+            if (extractRes.ok) {
+              extracted = await extractRes.json();
+            }
+          } catch {
+            extracted = {};
+          }
+
+          if (!extracted.restaurantId) {
+            extracted = { ...extracted, ...parseSwiggyLinkClient(swiggyUrl) };
+          }
 
           next = {
             ...next,
