@@ -46,6 +46,20 @@ const SHARE_FIELDS = [
   "note"
 ];
 
+const COMPACT_FIELD_MAP = {
+  r: "restaurantName",
+  c: "cuisine",
+  rt: "rating",
+  l: "location",
+  t: "time",
+  p: "peopleGoing",
+  o: "offer",
+  id: "restaurantId",
+  n: "note",
+  s: "swiggyUrl",
+  i: "imageUrl"
+};
+
 function buildDatetimeLocal(dateText, timeText) {
   const candidate = `${dateText || ""} ${timeText || ""}`.trim();
   if (!candidate) {
@@ -137,8 +151,95 @@ function parseBookingTextClient(rawText) {
   return details;
 }
 
+function toBase64Url(input) {
+  const bytes = new TextEncoder().encode(input);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function fromBase64Url(input) {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padLength = (4 - (normalized.length % 4)) % 4;
+  const padded = normalized + "=".repeat(padLength);
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function buildSwiggyUrlFromId(restaurantId) {
+  if (!restaurantId) {
+    return "";
+  }
+  const deepLink = `swiggydiners://details/${restaurantId}?source=sharing`;
+  return `https://swiggy.onelink.me/BVRZ?af_dp=${encodeURIComponent(deepLink)}`;
+}
+
+function packSharePayload(invite) {
+  const compact = {};
+  const setIfPresent = (shortKey, value) => {
+    if (value) {
+      compact[shortKey] = value;
+    }
+  };
+
+  setIfPresent("r", invite.restaurantName);
+  setIfPresent("c", invite.cuisine);
+  setIfPresent("rt", invite.rating);
+  setIfPresent("l", invite.location);
+  setIfPresent("t", invite.time);
+  setIfPresent("p", invite.peopleGoing);
+  setIfPresent("o", invite.offer);
+  setIfPresent("id", invite.restaurantId);
+  setIfPresent("n", invite.note);
+
+  if (!invite.restaurantId && invite.swiggyUrl) {
+    setIfPresent("s", invite.swiggyUrl);
+  }
+  if (invite.imageUrl && invite.imageUrl !== RELIABLE_PREVIEW_FALLBACK) {
+    setIfPresent("i", invite.imageUrl);
+  }
+
+  return toBase64Url(JSON.stringify(compact));
+}
+
+function unpackSharePayload(compactValue) {
+  try {
+    const decoded = fromBase64Url(compactValue);
+    const payload = JSON.parse(decoded);
+    if (!payload || typeof payload !== "object") {
+      return {};
+    }
+
+    const expanded = {};
+    Object.entries(COMPACT_FIELD_MAP).forEach(([shortKey, fullKey]) => {
+      if (payload[shortKey]) {
+        expanded[fullKey] = payload[shortKey];
+      }
+    });
+
+    if (!expanded.swiggyUrl && expanded.restaurantId) {
+      expanded.swiggyUrl = buildSwiggyUrlFromId(expanded.restaurantId);
+    }
+    return expanded;
+  } catch {
+    return {};
+  }
+}
+
 function readInviteFromUrl() {
   const params = new URLSearchParams(window.location.search);
+
+  const compact = params.get("d");
+  if (compact) {
+    const decoded = unpackSharePayload(compact);
+    if (Object.keys(decoded).length) {
+      return decoded;
+    }
+  }
+
   const next = {};
   SHARE_FIELDS.forEach((field) => {
     const value = params.get(field);
@@ -246,11 +347,7 @@ export default function App() {
 
   const shareUrl = useMemo(() => {
     const url = new URL(window.location.origin);
-    SHARE_FIELDS.forEach((field) => {
-      if (invite[field]) {
-        url.searchParams.set(field, invite[field]);
-      }
-    });
+    url.searchParams.set("d", packSharePayload(invite));
     return url.toString();
   }, [invite]);
 
