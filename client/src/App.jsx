@@ -312,8 +312,13 @@ function toCalendarUrl(invite) {
 
 export default function App() {
   const urlParams = readInviteFromUrl();
-  const isSharedView = Boolean(urlParams.restaurantName);
+  const searchParams = new URLSearchParams(window.location.search);
+  const hasShortId = searchParams.has("i");
+  const isSharedView = Boolean(urlParams.restaurantName) || hasShortId;
+
   const [invite, setInvite] = useState({ ...DEFAULT_INVITE, ...urlParams });
+  const [loadingInvite, setLoadingInvite] = useState(hasShortId);
+
   const [bookingText, setBookingText] = useState(DEMO_BOOKINGS[0].text);
   const [loadingAutofill, setLoadingAutofill] = useState(false);
   const [autoParsing, setAutoParsing] = useState(false);
@@ -325,6 +330,48 @@ export default function App() {
   useEffect(() => {
     inviteRef.current = invite;
   }, [invite]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const inviteId = params.get("i");
+    if (inviteId) {
+      setStatus("Loading shared invite...");
+      fetch(`/api/invite/${inviteId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Invite not found");
+          return res.json();
+        })
+        .then((data) => {
+          setInvite({ ...DEFAULT_INVITE, ...data });
+          setStatus("Invite loaded from short link.");
+        })
+        .catch((err) => {
+          console.error(err);
+          setStatus("Could not load invite. It may have expired.");
+        })
+        .finally(() => {
+          setLoadingInvite(false);
+        });
+    }
+  }, []);
+
+  async function getShortLink() {
+    try {
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(invite)
+      });
+      if (!res.ok) throw new Error("Failed to shorten link");
+      const { id } = await res.json();
+      const url = new URL(window.location.origin);
+      url.searchParams.set("i", id);
+      return url.toString();
+    } catch (e) {
+      console.error(e);
+      return shareUrl;
+    }
+  }
 
   useEffect(() => {
     if (invite.time || isSharedView) {
@@ -522,9 +569,11 @@ export default function App() {
   }
 
   async function handleCopyLink() {
+    setStatus("Generating share link...");
+    const shortUrl = await getShortLink();
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setStatus("Share link copied.");
+      await navigator.clipboard.writeText(shortUrl);
+      setStatus("Short link copied.");
     } catch (error) {
       setStatus("Could not copy link. Use the URL bar instead.");
       console.error(error);
@@ -532,8 +581,10 @@ export default function App() {
   }
 
   async function handleNativeShare() {
+    const shortUrl = await getShortLink();
     if (!navigator.share) {
-      await handleCopyLink();
+      await navigator.clipboard.writeText(shortUrl);
+      setStatus("Short link copied.");
       setPreviewOpen(false);
       return;
     }
@@ -542,7 +593,7 @@ export default function App() {
       await navigator.share({
         title: `${invite.restaurantName} Invite`,
         text: `${invite.restaurantName} · ${formatDateTime(invite.time)}`,
-        url: shareUrl
+        url: shortUrl
       });
       setStatus("Invite shared.");
       setPreviewOpen(false);
@@ -568,6 +619,14 @@ export default function App() {
   }
 
   // Shared view - recipients only see the cards
+  if (loadingInvite) {
+    return (
+      <div className="app-shell flex min-h-screen flex-col items-center justify-center">
+        <p className="animate-pulse text-lg font-medium text-rose-950/80">Loading invite...</p>
+      </div>
+    );
+  }
+
   if (isSharedView) {
     return (
       <div className="app-shell flex min-h-screen flex-col items-center justify-center">

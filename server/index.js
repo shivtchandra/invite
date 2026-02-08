@@ -6,9 +6,38 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8787;
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
 
 app.use(cors());
 app.use(express.json());
+
+const DATA_FILE = path.join(__dirname, "invites.json");
+let inviteStore = {};
+
+// Load existing invites on startup
+try {
+  if (fs.existsSync(DATA_FILE)) {
+    const raw = fs.readFileSync(DATA_FILE, "utf-8");
+    inviteStore = JSON.parse(raw);
+  }
+} catch (e) {
+  console.error("Failed to load invites:", e);
+  inviteStore = {};
+}
+
+function generateId() {
+  return crypto.randomBytes(4).toString("hex").slice(0, 7);
+}
+
+function saveStore() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(inviteStore, null, 2));
+  } catch (e) {
+    console.error("Failed to save invites:", e);
+  }
+}
 
 const CUISINE_HINTS = [
   "biryani",
@@ -230,6 +259,33 @@ async function searchGooglePlace(name, location) {
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.post("/api/invite", (req, res) => {
+  const payload = req.body;
+
+  if (!payload || typeof payload !== "object") {
+    return res.status(400).json({ error: "Invalid payload" });
+  }
+
+  let id = generateId();
+  while (inviteStore[id]) {
+    id = generateId();
+  }
+
+  inviteStore[id] = payload;
+  saveStore();
+
+  return res.json({ id });
+});
+
+app.get("/api/invite/:id", (req, res) => {
+  const { id } = req.params;
+  const data = inviteStore[id];
+  if (!data) {
+    return res.status(404).json({ error: "Invite not found" });
+  }
+  return res.json(data);
 });
 
 app.get("/api/extract-swiggy", (req, res) => {
