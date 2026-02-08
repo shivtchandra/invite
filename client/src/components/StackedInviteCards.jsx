@@ -178,6 +178,7 @@ export default function StackedInviteCards({ invite, calendarUrl, shareUrl }) {
             variants={lineReveal}
             initial="hidden"
             animate="visible"
+            key={`greeting-${invite.senderName}`}
             custom={0.25}
           >
             {invite.senderName ? `Hey! ${invite.senderName} here` : "Hey there!"}
