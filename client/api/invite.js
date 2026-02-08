@@ -1,4 +1,6 @@
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
+
+const redis = Redis.fromEnv();
 
 function generateId() {
     const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -10,7 +12,6 @@ function generateId() {
 }
 
 export default async function handler(req, res) {
-    // Enable CORS
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -27,18 +28,17 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: "Invalid payload" });
             }
 
-            // Generate unique ID
             let id = generateId();
             let attempts = 0;
             while (attempts < 10) {
-                const existing = await kv.get(`invite:${id}`);
+                const existing = await redis.get(`invite:${id}`);
                 if (!existing) break;
                 id = generateId();
                 attempts++;
             }
 
-            // Store with 30 day expiration
-            await kv.set(`invite:${id}`, JSON.stringify(payload), { ex: 60 * 60 * 24 * 30 });
+            // Store with 30 day expiration (in seconds)
+            await redis.set(`invite:${id}`, JSON.stringify(payload), { ex: 60 * 60 * 24 * 30 });
 
             return res.status(200).json({ id });
         } catch (error) {

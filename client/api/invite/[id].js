@@ -1,7 +1,8 @@
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
+
+const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
-    // Enable CORS
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const data = await kv.get(`invite:${id}`);
+        const data = await redis.get(`invite:${id}`);
 
         if (!data) {
             return res.status(404).json({ error: "Invite not found" });
