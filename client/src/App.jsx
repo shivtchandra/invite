@@ -346,8 +346,10 @@ export default function App() {
           return res.json();
         })
         .then((data) => {
+          console.log("[Short Link] Loaded invite data:", data);
           setInvite({ ...DEFAULT_INVITE, ...data });
           setStatus("Invite loaded from short link.");
+          console.log("[Short Link] Invite state updated with senderName:", data.senderName);
         })
         .catch((err) => {
           console.error(err);
@@ -619,7 +621,12 @@ export default function App() {
   }
 
   function updateField(field, value) {
-    setInvite((prev) => ({ ...prev, [field]: value }));
+    console.log(`[updateField] ${field}:`, value);
+    setInvite((prev) => {
+      const updated = { ...prev, [field]: value };
+      console.log("[updateField] New invite state:", updated);
+      return updated;
+    });
   }
 
   // Shared view - recipients only see the cards
@@ -643,7 +650,12 @@ export default function App() {
           </span>
         </div>
         <div className="w-full max-w-lg">
-          <StackedInviteCards invite={invitePreview} calendarUrl={calendarUrl} shareUrl={shareUrl} />
+          <StackedInviteCards
+            key={`${invite.senderName}-${invite.time}-${invite.restaurantName}`}
+            invite={invitePreview}
+            calendarUrl={calendarUrl}
+            shareUrl={shareUrl}
+          />
         </div>
       </div>
     );
@@ -831,7 +843,12 @@ export default function App() {
               <p className="mb-4 text-center text-xs uppercase tracking-[0.18em] text-rose-500">
                 Live Invite Reveal
               </p>
-              <StackedInviteCards invite={invitePreview} calendarUrl={calendarUrl} shareUrl={shareUrl} />
+              <StackedInviteCards
+                key={`main-${invite.senderName}-${invite.time}`}
+                invite={invitePreview}
+                calendarUrl={calendarUrl}
+                shareUrl={shareUrl}
+              />
             </div>
           </section>
         </main>
@@ -882,7 +899,12 @@ export default function App() {
                 </div>
               </div>
               <div className="experience-stack">
-                <StackedInviteCards invite={invitePreview} calendarUrl={calendarUrl} shareUrl={shareUrl} />
+                <StackedInviteCards
+                  key={`modal-${invite.senderName}-${invite.time}`}
+                  invite={invitePreview}
+                  calendarUrl={calendarUrl}
+                  shareUrl={shareUrl}
+                />
               </div>
             </motion.div>
           </motion.div>
