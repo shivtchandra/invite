@@ -35,7 +35,8 @@
   }
 
   .glass-panel {
-    @apply rounded-3xl border border-rose-200 bg-white shadow-[0_20px_45px_-35px_rgba(190, 24, 93, 0.48)];
+    @apply rounded-3xl border border-rose-200 bg-white;
+    box-shadow: 0 20px 45px -35px rgba(190, 24, 93, 0.48);
   }
 
   .label {
@@ -68,7 +69,10 @@
   }
 
   .stack-card {
-    @apply absolute inset-0 m-auto w-[calc(100%-40px)] max-w-[360px] rounded-3xl border border-rose-200/60 bg-white p-6 overflow-hidden shadow-[0_40px_80px_-20px_rgba(190, 24, 93, 0.30)];
+    @apply absolute inset-0 m-auto rounded-3xl border border-rose-200/60 bg-white p-6 overflow-hidden;
+    width: calc(100% - 40px);
+    max-width: 360px;
+    box-shadow: 0 40px 80px -20px rgba(190, 24, 93, 0.30);
     backface-visibility: hidden;
   }
 
@@ -107,7 +111,8 @@
   }
 
   .experience-shell {
-    @apply grid w-full max-w-6xl gap-6 rounded-3xl border border-rose-200 bg-white p-5 shadow-[0_26px_70px_-38px_rgba(136, 19, 55, 0.55)] lg:grid-cols-[0.9fr_1.1fr] lg:p-8;
+    @apply grid w-full max-w-6xl gap-6 rounded-3xl border border-rose-200 bg-white p-5 lg:grid-cols-[0.9fr_1.1fr] lg:p-8;
+    box-shadow: 0 26px 70px -38px rgba(136, 19, 55, 0.55);
   }
 
   .experience-stack {
