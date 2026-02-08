@@ -107,17 +107,28 @@ function extractRestaurantId(value) {
   return match ? match[1] : "";
 }
 
-function parseSwiggyLink(rawUrl) {
+function detectSource(text) {
+  const t = String(text || "").toLowerCase();
+  if (/swiggy\.onelink\.me|swiggy\.com|swiggydiners|swiggy dineout/i.test(t)) return "swiggy";
+  if (/zomato\.com|zomato gold|zomato pro/i.test(t)) return "zomato";
+  if (/dineout\.co\.in|dineout/i.test(t)) return "dineout";
+  if (/https?:\/\//.test(t)) return "other";
+  return "manual";
+}
+
+function parseLink(rawUrl) {
   try {
     const parsed = new URL(rawUrl);
+    const hostname = parsed.hostname.toLowerCase();
 
-    if (parsed.hostname.includes("swiggy.onelink.me")) {
+    // Swiggy onelink deep links
+    if (hostname.includes("swiggy.onelink.me")) {
       const afDpRaw = parsed.searchParams.get("af_dp") || parsed.searchParams.get("deep_link_value") || "";
       const afWebRaw = parsed.searchParams.get("af_web_dp") || "";
       const decodedDeepLink = afDpRaw ? decodeURIComponent(afDpRaw) : "";
       const decodedWebUrl = afWebRaw ? decodeURIComponent(afWebRaw) : "";
 
-      const result = {};
+      const result = { source: "swiggy" };
       if (decodedDeepLink) {
         result.deepLink = decodedDeepLink;
       }
@@ -128,44 +139,57 @@ function parseSwiggyLink(rawUrl) {
       }
 
       if (decodedWebUrl && decodedWebUrl !== rawUrl) {
-        const webParsed = parseSwiggyLink(decodedWebUrl);
+        const webParsed = parseLink(decodedWebUrl);
         return { ...webParsed, ...result };
       }
       return result;
     }
 
+    // Zomato URLs: zomato.com/city/restaurant-slug
+    if (hostname.includes("zomato.com")) {
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      const slug = segments.find((s) => s.includes("-") && s !== "city") || "";
+      const tokens = slug.split("-").filter((t) => !/^\d+$/.test(t));
+      const name = toTitleCase(tokens.slice(0, Math.ceil(tokens.length * 0.6)).join(" "));
+      const location = toTitleCase(segments[0] || "");
+      const cuisine = inferCuisine(tokens);
+      return { source: "zomato", name, location, cuisine, restaurantId: "" };
+    }
+
+    // Dineout URLs: dineout.co.in/restaurant/slug
+    if (hostname.includes("dineout.co.in") || hostname.includes("dineout.com")) {
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      const slug = segments.find((s) => s.includes("-")) || "";
+      const tokens = slug.split("-").filter((t) => !/^\d+$/.test(t));
+      const name = toTitleCase(tokens.join(" "));
+      const location = toTitleCase(segments.find((s) => s !== "restaurant" && !s.includes("-")) || "");
+      return { source: "dineout", name, location, restaurantId: "" };
+    }
+
+    // Swiggy direct URLs
+    if (hostname.includes("swiggy.com")) {
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      const restaurantId = segments.slice().reverse().find((segment) => /^\d+$/.test(segment));
+      const slug = [...segments].reverse().find((segment) => segment.includes("-")) || "";
+
+      if (!slug) {
+        return restaurantId ? { source: "swiggy", restaurantId } : { source: "swiggy" };
+      }
+
+      const tokens = decodeURIComponent(slug).split("-").map((token) => token.trim()).filter(Boolean).filter((token) => !/^\d+$/.test(token));
+      if (!tokens.length) return { source: "swiggy" };
+
+      const nameEnd = Math.max(2, Math.ceil(tokens.length * 0.58));
+      const name = toTitleCase(tokens.slice(0, nameEnd).join(" "));
+      const location = toTitleCase(tokens.slice(nameEnd).join(" ")) || toTitleCase(segments.find((s) => s !== "city") || "");
+      const cuisine = inferCuisine(tokens);
+      return { source: "swiggy", name, location, cuisine, restaurantId: restaurantId || "" };
+    }
+
+    // Generic URL: extract any numeric ID from path
     const segments = parsed.pathname.split("/").filter(Boolean);
-    const restaurantId = segments
-      .slice()
-      .reverse()
-      .find((segment) => /^\d+$/.test(segment));
-    const slug = [...segments].reverse().find((segment) => segment.includes("-")) || "";
-
-    if (!slug) {
-      return restaurantId ? { restaurantId } : {};
-    }
-
-    const tokens = decodeURIComponent(slug)
-      .split("-")
-      .map((token) => token.trim())
-      .filter(Boolean)
-      .filter((token) => !/^\d+$/.test(token));
-
-    if (!tokens.length) {
-      return {};
-    }
-
-    const nameEnd = Math.max(2, Math.ceil(tokens.length * 0.58));
-    const nameTokens = tokens.slice(0, nameEnd);
-    const locationTokens = tokens.slice(nameEnd);
-
-    const name = toTitleCase(nameTokens.join(" "));
-    const location =
-      toTitleCase(locationTokens.join(" ")) ||
-      toTitleCase(segments.find((segment) => segment !== "city") || "");
-    const cuisine = inferCuisine(tokens);
-
-    return { name, location, cuisine, restaurantId: restaurantId || "" };
+    const restaurantId = segments.slice().reverse().find((s) => /^\d+$/.test(s));
+    return { source: "other", restaurantId: restaurantId || "" };
   } catch {
     return {};
   }
@@ -178,7 +202,9 @@ function parseBookingText(rawText) {
   }
 
   const details = {};
+  details.source = detectSource(text);
 
+  // Swiggy-style: "booking on 09 Feb 2026, 07:30 PM"
   const bookingMatch = text.match(/booking on\s+([^,]+),\s*([0-9: ]+[APMapm]{2})/i);
   if (bookingMatch) {
     details.bookingDate = bookingMatch[1].trim();
@@ -191,6 +217,7 @@ function parseBookingText(rawText) {
     details.peopleGoing = guestsMatch[1];
   }
 
+  // Swiggy venue: "at Restaurant, Location with offer"
   const venueMatch = text.match(/at\s+(.+?)\s+with offer/i);
   const venueFallback = text.match(/at\s+(.+?)\.\s*please reach/i);
   const venueRaw = (venueMatch?.[1] || venueFallback?.[1] || "").trim();
@@ -202,17 +229,53 @@ function parseBookingText(rawText) {
     }
   }
 
+  // Zomato-style venue: "Table booked at Farzi Cafe, Jubilee Hills for 6 guests"
+  if (!details.restaurantName) {
+    const zomatoVenue = text.match(/(?:table (?:booked|reserved) at|booked at)\s+(.+?)(?:\s+for\s+\d+|\s+on\s+)/i);
+    if (zomatoVenue) {
+      const parts = zomatoVenue[1].split(",").map((p) => p.trim()).filter(Boolean);
+      details.restaurantName = parts[0];
+      details.location = parts.slice(1).join(", ");
+    }
+  }
+
   const offerMatch = text.match(/with offer\s+(.+?)(?:\.|please reach|checkout)/i);
   if (offerMatch) {
     details.offer = offerMatch[1].trim();
   }
 
+  // Zomato Gold/Pro offers
+  if (!details.offer) {
+    const zomatoOffer = text.match(/(zomato (?:gold|pro)[^.]*)/i);
+    if (zomatoOffer) {
+      details.offer = zomatoOffer[1].trim();
+    }
+  }
+
+  // Generic date/time fallback: "on 15 Feb 2026 at 8:00 PM"
+  if (!details.time) {
+    const dateTimeMatch = text.match(/on\s+(\d{1,2}\s+\w+\s+\d{4})[,\s]+(?:at\s+)?(\d{1,2}:\d{2}\s*[APMapm]{2})/i);
+    if (dateTimeMatch) {
+      details.time = buildDatetimeLocal(dateTimeMatch[1].trim(), dateTimeMatch[2].trim().toUpperCase());
+    }
+  }
+
+  // Generic URL extraction
   const urlMatch = text.match(/https?:\/\/[^\s]+/i);
   if (urlMatch) {
-    details.swiggyUrl = urlMatch[0].trim().replace(/[),.;]+$/, "");
-    const swiggyLinkInfo = parseSwiggyLink(details.swiggyUrl);
-    if (swiggyLinkInfo.restaurantId) {
-      details.restaurantId = swiggyLinkInfo.restaurantId;
+    details.menuUrl = urlMatch[0].trim().replace(/[),.;]+$/, "");
+    const linkInfo = parseLink(details.menuUrl);
+    if (linkInfo.restaurantId) {
+      details.restaurantId = linkInfo.restaurantId;
+    }
+    if (linkInfo.name && !details.restaurantName) {
+      details.restaurantName = linkInfo.name;
+    }
+    if (linkInfo.location && !details.location) {
+      details.location = linkInfo.location;
+    }
+    if (linkInfo.source) {
+      details.source = linkInfo.source;
     }
   }
 
@@ -288,13 +351,24 @@ app.get("/api/invite/:id", (req, res) => {
   return res.json(data);
 });
 
+app.get("/api/extract-link", (req, res) => {
+  const rawUrl = String(req.query.url || "");
+  if (!rawUrl) {
+    return res.status(400).json({ error: "Missing url parameter" });
+  }
+
+  const parsed = parseLink(rawUrl);
+  return res.json(parsed);
+});
+
+// Backward compatibility alias
 app.get("/api/extract-swiggy", (req, res) => {
   const rawUrl = String(req.query.url || "");
   if (!rawUrl) {
     return res.status(400).json({ error: "Missing url parameter" });
   }
 
-  const parsed = parseSwiggyLink(rawUrl);
+  const parsed = parseLink(rawUrl);
   return res.json(parsed);
 });
 
