@@ -107,7 +107,7 @@ export default function StackedInviteCards({ invite, calendarUrl, shareUrl }) {
         accumulatedDelta = 0;
       }, 800); // Longer cooldown for slower feel
 
-      if (event.deltaY > 0 && currentCard < 4) {
+      if (event.deltaY > 0 && currentCard < 5) {
         setCurrentCard((prev) => prev + 1);
         accumulatedDelta = 0;
       } else if (event.deltaY < 0 && currentCard > 0) {
@@ -136,7 +136,7 @@ export default function StackedInviteCards({ invite, calendarUrl, shareUrl }) {
       const diff = startY - endY;
 
       if (Math.abs(diff) > 60) {
-        if (diff > 0 && currentCard < 4) {
+        if (diff > 0 && currentCard < 5) {
           setCurrentCard((prev) => prev + 1);
         } else if (diff < 0 && currentCard > 0) {
           setCurrentCard((prev) => prev - 1);
@@ -153,7 +153,7 @@ export default function StackedInviteCards({ invite, calendarUrl, shareUrl }) {
   }, [currentCard]);
 
   const cards = [
-    // Card 1: Welcome
+    // Card 1: Welcome with Sender
     {
       id: "welcome",
       content: (
@@ -180,7 +180,7 @@ export default function StackedInviteCards({ invite, calendarUrl, shareUrl }) {
             animate="visible"
             custom={0.25}
           >
-            Hey there!
+            {invite.senderName ? `Hey! ${invite.senderName} here` : "Hey there!"}
           </motion.h2>
           <motion.p
             className="text-base text-rose-600 mb-6"
@@ -189,14 +189,23 @@ export default function StackedInviteCards({ invite, calendarUrl, shareUrl }) {
             animate="visible"
             custom={0.4}
           >
-            We've got something special planned
+            Hope you're doing good! ✨
+          </motion.p>
+          <motion.p
+            className="text-sm text-rose-500 mb-4"
+            variants={lineReveal}
+            initial="hidden"
+            animate="visible"
+            custom={0.5}
+          >
+            Got something special planned for us...
           </motion.p>
           <motion.div
             className="flex flex-col items-center gap-2"
             variants={lineReveal}
             initial="hidden"
             animate="visible"
-            custom={0.55}
+            custom={0.6}
           >
             <p className="text-sm text-rose-500">Scroll to reveal</p>
             <motion.div
@@ -460,6 +469,80 @@ export default function StackedInviteCards({ invite, calendarUrl, shareUrl }) {
               I'm in!
             </a>
           </motion.div>
+        </div>
+      )
+    },
+    // Card 6: Google Maps Location
+    {
+      id: "location",
+      content: (
+        <div className="flex h-full flex-col items-center justify-center text-center px-4">
+          <motion.div
+            className="mb-3 inline-flex items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 p-3"
+            variants={lineReveal}
+            initial="hidden"
+            animate="visible"
+            custom={0.1}
+          >
+            <svg className="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </motion.div>
+          <motion.p
+            className="card-kicker mb-2"
+            variants={lineReveal}
+            initial="hidden"
+            animate="visible"
+            custom={0.2}
+          >
+            Find us here
+          </motion.p>
+          <motion.h2
+            className="font-display text-2xl font-bold text-rose-950 mb-3"
+            variants={lineReveal}
+            initial="hidden"
+            animate="visible"
+            custom={0.3}
+          >
+            {invite.restaurantName || "Restaurant Location"}
+          </motion.h2>
+          <motion.div
+            className="w-full h-40 rounded-xl overflow-hidden border border-rose-200 shadow-sm mb-4"
+            variants={lineReveal}
+            initial="hidden"
+            animate="visible"
+            custom={0.4}
+          >
+            <iframe
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              src={`https://www.google.com/maps/embed/v1/search?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(
+                `${invite.restaurantName || ""} ${invite.location || ""}`
+              )}`}
+              title="Restaurant Location"
+            />
+          </motion.div>
+          <motion.a
+            className="action-btn action-btn-secondary"
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              `${invite.restaurantName || ""} ${invite.location || ""}`
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            variants={lineReveal}
+            initial="hidden"
+            animate="visible"
+            custom={0.5}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Open in Google Maps
+          </motion.a>
         </div>
       )
     }

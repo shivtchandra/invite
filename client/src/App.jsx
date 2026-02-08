@@ -17,6 +17,7 @@ const DEMO_BOOKINGS = [
 ];
 
 const DEFAULT_INVITE = {
+  senderName: "",
   restaurantName: "The Happy Yard",
   cuisine: "Contemporary",
   rating: "4.6",
@@ -33,6 +34,7 @@ const DEFAULT_INVITE = {
 };
 
 const SHARE_FIELDS = [
+  "senderName",
   "restaurantName",
   "cuisine",
   "rating",
@@ -47,6 +49,7 @@ const SHARE_FIELDS = [
 ];
 
 const COMPACT_FIELD_MAP = {
+  sn: "senderName",
   r: "restaurantName",
   c: "cuisine",
   rt: "rating",
@@ -185,6 +188,7 @@ function packSharePayload(invite) {
     }
   };
 
+  setIfPresent("sn", invite.senderName);
   setIfPresent("r", invite.restaurantName);
   setIfPresent("c", invite.cuisine);
   setIfPresent("rt", invite.rating);
@@ -661,6 +665,16 @@ export default function App() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-2 sm:col-span-2">
+                <span className="label">Your Name (Sender)</span>
+                <input
+                  className="field"
+                  value={invite.senderName}
+                  onChange={(event) => updateField("senderName", event.target.value)}
+                  placeholder="Enter your name..."
+                />
+              </label>
+
               <label className="space-y-2 sm:col-span-2">
                 <span className="label">Swiggy Booking Message</span>
                 <textarea
